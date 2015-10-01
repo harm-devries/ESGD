@@ -26,7 +26,9 @@ class ESGD(object):
             
         self.t1 = theano.shared(numpy.asarray(0, "float32"))
         self.t2 = theano.shared(numpy.asarray(0, "float32"))
+        self.damping = theano.shared(numpy.asarray(0, "float32"))
         self.rng = rng_mrg.MRG_RandomStreams(numpy.random.randint(2**30))
+        
     
     def updates(self, learning_rate, beta1, beta2, epsilon):
         """ Returns two updates. A slow one that updates the equilibration preconditioner. It should be called once every 
@@ -44,16 +46,19 @@ class ESGD(object):
         precond = [beta2*old_precond + (1-beta2)*(p**2)  for old_precond, p in
             zip(self.ema_precond, product)]
         new_t2 = self.t2 + 1
-
+        
+        damping_new = T.max([d.max() for d in precond])/(1-beta1**new_t1) * epsilon
+        
         slow_updates = zip(self.ema_precond, precond)
         slow_updates.append((self.t2, new_t2))
         slow_updates += zip(self.ema_grad, grad)
         slow_updates.append((self.t1, new_t1))
+        slow_updates.append((self.damping, damping_new))
         
         for param, g, precon in zip(self.parameters, self.gradients, precond):
             g_bias_corrected = g/(1-beta1**new_t1)
             precon_bias_corrected = precon/(1-beta2**new_t2)
-            update = -learning_rate * g_bias_corrected / (T.sqrt(precon_bias_corrected) + epsilon)
+            update = -learning_rate * g_bias_corrected / (T.sqrt(precon_bias_corrected) + damping_new)
             slow_updates.append((param, param + update))
 
         fast_updates = zip(self.ema_grad, grad)   
@@ -61,7 +66,7 @@ class ESGD(object):
         for param, g, precon in zip(self.parameters, grad, self.ema_precond):
             g_bias_corrected = g/(1-beta1**new_t1)
             precon_bias_corrected = precon/(1-beta2**new_t2)
-            update = - learning_rate * g_bias_corrected / (T.sqrt(precon_bias_corrected) + epsilon)
+            update = - learning_rate * g_bias_corrected / (T.sqrt(precon_bias_corrected) + self.damping)
             fast_updates.append((param, param + update))
         
         return slow_updates, fast_updates

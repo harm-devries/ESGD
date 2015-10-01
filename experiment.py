@@ -23,9 +23,9 @@ def main(n_inputs=784,
          n_hiddens0=1000,
          n_hiddens1=1000,
          n_out=10,
-         learning_rate=0.05,
-         beta1=0.0,
-         beta2=0.9999,
+         learning_rate=0.01,
+         beta1=0.9,
+         beta2=0.999,
          epsilon=10**-6,
          n_updates=250*100,
          batch_size=200,
@@ -74,8 +74,9 @@ def main(n_inputs=784,
     hidden = rect(T.dot(hidden, W1) + b1)
     hidden = T.dot(hidden, W2) + b2
 
-    e_x = T.exp(hidden - theano.gradient.zero_grad(hidden.max(axis=1)[:, None]))
-    output = e_x / e_x.sum(axis=1)[:, None]
+    #e_x = T.exp(hidden - theano.gradient.zero_grad(hidden.max(axis=1)[:, None]))
+    #output = e_x / e_x.sum(axis=1)[:, None]
+    output = T.nnet.softmax(hidden)
     
     def cost(x, y):
         ind = T.arange(y.shape[0])*x.shape[1] + y
